@@ -4,6 +4,12 @@ pragma solidity ^0.8.28;
 contract Document {
     address public owner; // Address of the contract owner
 
+    struct AuditEntry {
+        uint256 timestamp;
+        string action;
+        string performedBy;
+    }
+
     struct DocumentDetails {
         string id;
         string hash;
@@ -16,10 +22,12 @@ contract Document {
     }
 
     mapping(string => UserDetails) public users; // Mapping to store user details by userId
+    mapping(string => AuditEntry[]) public auditEntries; // Mapping to store audit details by documentId
     mapping(string => bool) public documentHashCreatedStatus; // Mapping to track if a document hash is already used
 
     event DocumentCreated(string userId, string documentId, string documentHash);
     event UserCreated(string userId, string name, string email);
+    event AuditEntryAdded(string documentId, string action, string performedBy, uint256 timestamp);
     constructor() {
         owner = msg.sender; // Set the contract deployer as the owner
     }
@@ -110,5 +118,45 @@ contract Document {
         require(bytes(users[userId].name).length > 0, "User does not exist."); // Ensure the user exists
         UserDetails storage user = users[userId];
         return (user.name, user.email, user.documents); // Return user details
+    }
+
+    /**
+     * @dev Adds audit entries in bulk for multiple documents.
+     * @param documentIds The array of document IDs to which the audit entries belong.
+     * @param actions The array of action descriptions for the audit entries.
+     * @notice The arrays `documentIds` and `actions` must have the same length.
+     */
+    function addAuditEntries(
+        string[] memory documentIds,
+        string[] memory userIds,
+        string[] memory actions,
+        uint256[] memory timestamps
+    ) external onlyOwner {
+        require(documentIds.length == actions.length, "Mismatched input array lengths.");
+
+        for (uint256 i = 0; i < documentIds.length; i++) {
+            require(bytes(documentIds[i]).length > 0, "Invalid document ID.");
+            require(bytes(actions[i]).length > 0, "Invalid action description.");
+            require(bytes(userIds[i]).length > 0, "Invalid action description.");
+
+            AuditEntry memory newEntry = AuditEntry({
+                timestamp: timestamps[i],
+                action: actions[i],
+                performedBy: userIds[i]
+            });
+
+            auditEntries[documentIds[i]].push(newEntry);
+
+            emit AuditEntryAdded(documentIds[i], actions[i], userIds[i], block.timestamp);
+        }
+    }
+
+    /**
+     * @dev Retrieves the audit history for a specific document.
+     * @param documentId The ID of the document.
+     * @return An array of AuditEntry for the document.
+     */
+    function getAuditHistory(string memory documentId) external view returns (AuditEntry[] memory) {
+        return auditEntries[documentId];
     }
 }

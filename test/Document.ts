@@ -145,4 +145,108 @@ describe("Document Contract", function () {
             });
         });
     });
+
+    describe("AuditEntry Management", function () {
+        describe("addAuditEntries", function () {
+            it("Should add audit entries for valid inputs", async function () {
+                const { document, owner } = await loadFixture(deployDocumentFixture);
+
+                const documentIds = ["doc1235142", "doc1235145"];
+                const userIds = ["user122423", "user122423"];
+                const actions = ["Modified", "Modified"];
+                const timestamps = [Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)];
+
+                await document.connect(owner).addAuditEntries(documentIds, userIds, actions, timestamps);
+
+                const auditHistory1 = await document.getAuditHistory(documentIds[0]);
+                const auditHistory2 = await document.getAuditHistory(documentIds[1]);
+
+                expect(auditHistory1.length).to.equal(1);
+                expect(auditHistory1[0].action).to.equal(actions[0]);
+                expect(auditHistory1[0].performedBy).to.equal(userIds[0]);
+                expect(auditHistory1[0].timestamp).to.equal(timestamps[0]);
+
+                expect(auditHistory2.length).to.equal(1);
+                expect(auditHistory2[0].action).to.equal(actions[1]);
+                expect(auditHistory2[0].performedBy).to.equal(userIds[1]);
+                expect(auditHistory2[0].timestamp).to.equal(timestamps[1]);
+            });
+
+            it("Should revert if array lengths are mismatched", async function () {
+                const { document, owner } = await loadFixture(deployDocumentFixture);
+
+                const documentIds = ["doc1235142"];
+                const userIds = ["user123"];
+                const actions = ["Document Signed", "Document Viewed"];
+                const timestamps = [Math.floor(Date.now() / 1000)];
+
+                await expect(
+                    document.connect(owner).addAuditEntries(documentIds, userIds, actions, timestamps)
+                ).to.be.revertedWith("Mismatched input array lengths.");
+            });
+
+            it("Should revert if any document ID is invalid", async function () {
+                const { document, owner } = await loadFixture(deployDocumentFixture);
+
+                const documentIds = ["", "doc1235145"];
+                const userIds = ["user123", "user456"];
+                const actions = ["Document Signed", "Document Viewed"];
+                const timestamps = [Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)];
+
+                await expect(
+                    document.connect(owner).addAuditEntries(documentIds, userIds, actions, timestamps)
+                ).to.be.revertedWith("Invalid document ID.");
+            });
+
+            it("Should revert if any action description is invalid", async function () {
+                const { document, owner } = await loadFixture(deployDocumentFixture);
+
+                const documentIds = ["doc1235142", "doc1235145"];
+                const userIds = ["user123", "user456"];
+                const actions = ["Document Signed", ""];
+                const timestamps = [Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)];
+
+                await expect(
+                    document.connect(owner).addAuditEntries(documentIds, userIds, actions, timestamps)
+                ).to.be.revertedWith("Invalid action description.");
+            });
+        });
+
+        describe("getAuditHistory", function () {
+            it("Should return the correct audit history for a document", async function () {
+                const { document, owner } = await loadFixture(deployDocumentFixture);
+
+                const documentId = "doc1235142";
+                const userIds = ["user123", "user123"];
+                const actions = ["Document Signed", "Document Updated"];
+                const timestamps = [Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000)];
+
+                await document.connect(owner).addAuditEntries(
+                    [documentId, documentId],
+                    userIds,
+                    actions,
+                    timestamps
+                );
+
+                const auditHistory = await document.getAuditHistory(documentId);
+                expect(auditHistory.length).to.equal(2);
+
+                expect(auditHistory[0].action).to.equal(actions[0]);
+                expect(auditHistory[0].performedBy).to.equal(userIds[0]);
+                expect(auditHistory[0].timestamp).to.equal(timestamps[0]);
+
+                expect(auditHistory[1].action).to.equal(actions[1]);
+                expect(auditHistory[1].performedBy).to.equal(userIds[1]);
+                expect(auditHistory[1].timestamp).to.equal(timestamps[1]);
+            });
+
+            it("Should return an empty array for a document with no audit history", async function () {
+                const { document } = await loadFixture(deployDocumentFixture);
+
+                const auditHistory = await document.getAuditHistory("nonExistentDocument");
+                expect(auditHistory.length).to.equal(0);
+            });
+        });
+    });
+
 });
