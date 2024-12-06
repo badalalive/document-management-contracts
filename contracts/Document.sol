@@ -24,9 +24,11 @@ contract Document {
     mapping(string => UserDetails) public users; // Mapping to store user details by userId
     mapping(string => AuditEntry[]) public auditEntries; // Mapping to store audit details by documentId
     mapping(string => bool) public documentHashCreatedStatus; // Mapping to track if a document hash is already used
+    mapping(string => mapping(string => bool)) public sharedPermissions; // Mapping ti track the which document Id share ti which userId
 
     event DocumentCreated(string userId, string documentId, string documentHash);
     event UserCreated(string userId, string name, string email);
+    event DocumentShared(string documentId, string userId, string sharedWithUserId);
     event AuditEntryAdded(string documentId, string action, string performedBy, uint256 timestamp);
     constructor() {
         owner = msg.sender; // Set the contract deployer as the owner
@@ -94,11 +96,79 @@ contract Document {
     }
 
     /**
+     * @dev Shares a document with another user by granting access.
+     * @param userId The ID of the user who owns the document.
+     * @param documentId The ID of the document to share.
+     * @param sharedWithUserId The ID of the user to share the document with.
+     */
+    function shareDocument(
+        string memory userId,
+        string memory sharedWithUserId,
+        string memory documentId
+    ) external onlyOwner {
+        require(bytes(users[userId].name).length > 0, "Owner user does not exist.");
+        require(bytes(users[sharedWithUserId].name).length > 0, "Shared user does not exist.");
+        require(_isDocumentOwnedByUser(userId, documentId), "Document does not exist."); // Validate document first
+
+        sharedPermissions[documentId][sharedWithUserId] = true;
+
+        emit DocumentShared(documentId, userId, sharedWithUserId);
+    }
+
+    /**
+ * @dev Returns if a document has been shared between the owner and another user.
+ * @param userId The user ID of the owner who shared the document.
+ * @param sharedWithUserId The user ID of the recipient with whom the document was shared.
+ * @param documentId The unique identifier of the document.
+ * @return bool Returns true if the document has been shared with the user, false otherwise.
+ */
+    function getShareDocument(
+        string memory userId,
+        string memory sharedWithUserId,
+        string memory documentId)
+    external
+    onlyOwner
+    view returns (DocumentDetails[] memory)
+    {
+        // Ensure the owner and the user receiving the document exist
+        require(bytes(users[userId].name).length > 0, "Owner user does not exist.");
+        require(bytes(users[sharedWithUserId].name).length > 0, "Shared user does not exist.");
+        require(_isDocumentOwnedByUser(userId, documentId), "Document does not exist.");
+        require(hasAccess(sharedWithUserId, documentId), "User does not have access to this document.");
+        return users[userId].documents; // Return the user's documents
+    }
+
+    /**
+     * @dev Internal helper function to check if a document is owned by a user.
+     * @param userId The ID of the user.
+     * @param documentId The ID of the document.
+     * @return True if the document is owned by the user, otherwise false.
+     */
+    function _isDocumentOwnedByUser(string memory userId, string memory documentId) internal view returns (bool) {
+        DocumentDetails[] memory userDocuments = users[userId].documents;
+        for (uint256 i = 0; i < userDocuments.length; i++) {
+            if (keccak256(abi.encodePacked(userDocuments[i].id)) == keccak256(abi.encodePacked(documentId))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+        * @dev function hasAccess can be used for checking shared user permission
+        * @param sharedUserId The ID of the shared user.
+        * @param documentId The ID of the document.
+    */
+    function hasAccess(string memory sharedUserId, string memory documentId) public view returns (bool) {
+        return sharedPermissions[documentId][sharedUserId];
+    }
+
+    /**
      * @dev Retrieves all documents associated with a specific user.
      * @param userId The unique identifier for the user.
      * @return An array of DocumentDetails for the user.
      */
-    function getDocumentsByUser(string memory userId) external view returns (DocumentDetails[] memory) {
+    function getDocumentsByUser(string memory userId) external onlyOwner view returns (DocumentDetails[] memory) {
         require(bytes(users[userId].name).length > 0, "User does not exist."); // Ensure the user exists
         return users[userId].documents; // Return the user's documents
     }
@@ -112,6 +182,7 @@ contract Document {
      */
     function getUserDetails(string memory userId)
     external
+    onlyOwner
     view
     returns (string memory name, string memory email, DocumentDetails[] memory docs)
     {
@@ -156,7 +227,7 @@ contract Document {
      * @param documentId The ID of the document.
      * @return An array of AuditEntry for the document.
      */
-    function getAuditHistory(string memory documentId) external view returns (AuditEntry[] memory) {
+    function getAuditHistory(string memory documentId) external onlyOwner view returns (AuditEntry[] memory) {
         return auditEntries[documentId];
     }
 }

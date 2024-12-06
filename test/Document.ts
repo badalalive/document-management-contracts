@@ -249,4 +249,82 @@ describe("Document Contract", function () {
         });
     });
 
+    describe("ShareDocument", function () {
+        it("Should allow the document owner to share a document with another user", async function () {
+            const { document, owner, otherAccount } = await loadFixture(deployDocumentFixture);
+
+            const userId = "user122423";
+            const sharedWithUserId = "user345678";
+            const name = "block master";
+            const email = "blockmaster@chain.com";
+            const documentId = "doc1235142";
+            const documentHash = "eb95c37027cc6f462e4de8c355a9dc552a150f83971605d4f1cf0c445ab16317";
+
+            // Create two users
+            await document.connect(owner).createUser(userId, name, email);
+            await document.connect(owner).createUser(sharedWithUserId, "Shared User", "shared@chain.com");
+            // Create a document for the original user
+            await document.connect(owner).createDocument(userId, documentHash, documentId);
+
+            // Share the document with another user
+            await expect(document.connect(owner).shareDocument(userId, sharedWithUserId, documentId))
+                .to.emit(document, "DocumentShared")
+                .withArgs(documentId, userId, sharedWithUserId);
+        });
+
+        it("Should revert if the document does not belong to the user", async function () {
+            const { document, owner, otherAccount } = await loadFixture(deployDocumentFixture);
+
+            const userId = "user122423";
+            const sharedWithUserId = "user345678";
+            const documentId = "doc1235142";
+            const documentHash = "eb95c37027cc6f462e4de8c355a9dc552a150f83971605d4f1cf0c445ab16317";
+
+            // Create two users
+            await document.connect(owner).createUser(userId, "Owner User", "owner@chain.com");
+            await document.connect(owner).createUser(sharedWithUserId, "Shared User", "shared@chain.com");
+
+            // Create a document for the original user
+            await document.connect(owner).createDocument(userId, documentHash, documentId);
+
+            // Attempt to share a document not owned by the user
+            await expect(
+                document.connect(owner).shareDocument(userId, sharedWithUserId, "doc1235167")
+            ).to.be.revertedWith("Document does not exist.");
+        });
+
+        it("Should revert if trying to share with a non-existent user", async function () {
+            const { document, owner } = await loadFixture(deployDocumentFixture);
+
+            const userId = "user122423";
+            const documentId = "doc1235142";
+            const documentHash = "eb95c37027cc6f462e4de8c355a9dc552a150f83971605d4f1cf0c445ab16317";
+
+            // Create a user and a document
+            await document.connect(owner).createUser(userId, "Owner User", "owner@chain.com");
+            await document.connect(owner).createDocument(userId, documentHash, documentId);
+
+            // Attempt to share the document with a non-existent user
+            await expect(
+                document.connect(owner).shareDocument(userId, "nonExistentUser", documentId)
+            ).to.be.revertedWith("Shared user does not exist.");
+        });
+
+        it("Should revert if the document does not exist", async function () {
+            const { document, owner } = await loadFixture(deployDocumentFixture);
+
+            const userId = "user122423";
+            const sharedWithUserId = "user345678";
+
+            // Create two users
+            await document.connect(owner).createUser(userId, "Owner User", "owner@chain.com");
+            await document.connect(owner).createUser(sharedWithUserId, "Shared User", "shared@chain.com");
+
+            // Attempt to share a non-existent document
+            await expect(
+                document.connect(owner).shareDocument(userId, sharedWithUserId, "nonExistentDocument")
+            ).to.be.revertedWith("Document does not exist.");
+        });
+    });
+
 });
