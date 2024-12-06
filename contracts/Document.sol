@@ -115,27 +115,34 @@ contract Document {
         emit DocumentShared(documentId, userId, sharedWithUserId);
     }
 
-    /**
- * @dev Returns if a document has been shared between the owner and another user.
+/**
+ * @dev Returns the details of a specific document shared between the owner and another user.
  * @param userId The user ID of the owner who shared the document.
  * @param sharedWithUserId The user ID of the recipient with whom the document was shared.
  * @param documentId The unique identifier of the document.
- * @return bool Returns true if the document has been shared with the user, false otherwise.
+ * @return document The document details if shared with the user, or an empty DocumentDetails array if not found.
  */
     function getShareDocument(
         string memory userId,
         string memory sharedWithUserId,
-        string memory documentId)
+        string memory documentId
+    )
     external
     onlyOwner
-    view returns (DocumentDetails[] memory)
+    view
+    returns (DocumentDetails memory)
     {
         // Ensure the owner and the user receiving the document exist
         require(bytes(users[userId].name).length > 0, "Owner user does not exist.");
         require(bytes(users[sharedWithUserId].name).length > 0, "Shared user does not exist.");
         require(_isDocumentOwnedByUser(userId, documentId), "Document does not exist.");
         require(hasAccess(sharedWithUserId, documentId), "User does not have access to this document.");
-        return users[userId].documents; // Return the user's documents
+        for (uint i = 0; i < users[userId].documents.length; i++) {
+            if (keccak256(bytes(users[userId].documents[i].id)) == keccak256(bytes(documentId))) {
+                return users[userId].documents[i];
+            }
+        }
+        revert("Document not found.");
     }
 
     /**
